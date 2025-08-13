@@ -5,19 +5,16 @@ import { useApp } from '../contexts/AppContext';
 import { AptosService } from '../services/blockchain';
 
 const WalletConnection: React.FC = () => {
-  const { connect, account, connected, disconnect, wallets } = useWallet();
+  const { connect, account, connected, disconnect, wallets, signAndSubmitTransaction } = useWallet();
   const { setUser, setIsConnected } = useApp();
   const [showRegistration, setShowRegistration] = useState(false);
   const [loading, setLoading] = useState(false);
   const [registrationData, setRegistrationData] = useState({
     username: '',
     fullName: '',
-    dateOfBirth: '',
     height: '',
     weight: '',
     fitnessGoal: 'weight-loss',
-    email: '', // Optional - stored off-chain
-    agreeTerms: false
   });
 
   const handleWalletConnect = async (walletName: string) => {
@@ -26,14 +23,18 @@ const WalletConnection: React.FC = () => {
       await connect(walletName);
       
       if (account?.address) {
-        // Check if user exists (simulate checking on-chain)
-        const existingUser = localStorage.getItem(`fitcoin_user_${account.address}`);
+        const aptosService = AptosService.getInstance();
         
-        if (existingUser) {
-          // User exists, log them in
-          const user = JSON.parse(existingUser);
-          setUser(user);
-          setIsConnected(true);
+        // Check if user is registered on blockchain
+        const isRegistered = await aptosService.isUserRegistered(account.address);
+        
+        if (isRegistered) {
+          // User exists on blockchain, load their profile
+          const user = await aptosService.getUserProfile(account.address);
+          if (user) {
+            setUser(user);
+            setIsConnected(true);
+          }
         } else {
           // New user, show registration
           setShowRegistration(true);
@@ -54,43 +55,49 @@ const WalletConnection: React.FC = () => {
     try {
       const aptosService = AptosService.getInstance();
       
-      // In real Web3 app, this would:
-      // 1. Send transaction to Aptos Move smart contract with public data
-      // 2. Store private data (email) in off-chain database
-      // 3. Store profile image on IPFS if provided
-      
-      const newUser = await aptosService.registerUser({
-        email: registrationData.email,
+      // Create registration transaction
+      const transactionPayload = await aptosService.registerUser(account.address, {
         username: registrationData.username,
         fullName: registrationData.fullName,
-        dateOfBirth: registrationData.dateOfBirth,
         height: parseInt(registrationData.height),
         weight: parseInt(registrationData.weight),
         fitnessGoal: registrationData.fitnessGoal
       });
 
-      // Override with actual wallet address
-      newUser.walletAddress = account.address;
-      newUser.id = account.address;
+      // Submit transaction through wallet
+      const transaction = JSON.parse(transactionPayload);
+      const response = await signAndSubmitTransaction({
+        data: {
+          function: transaction.function,
+          functionArguments: transaction.arguments,
+        }
+      });
 
-      // Store user data (in real app, public data would be on-chain)
-      localStorage.setItem(`fitcoin_user_${account.address}`, JSON.stringify(newUser));
-      
-      setUser(newUser);
-      setIsConnected(true);
-      setShowRegistration(false);
+      console.log('Registration transaction:', response);
+
+      // Wait for transaction to be processed
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Load user profile from blockchain
+      const user = await aptosService.getUserProfile(account.address);
+      if (user) {
+        setUser(user);
+        setIsConnected(true);
+        setShowRegistration(false);
+      }
     } catch (error) {
       console.error('Registration failed:', error);
+      alert('Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
+    const { name, value } = e.target;
     setRegistrationData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+      [name]: value
     }));
   };
 
@@ -127,8 +134,8 @@ const WalletConnection: React.FC = () => {
         <div className="w-full max-w-sm bg-gray-900 border border-gray-800 rounded-xl p-6">
           <div className="text-center mb-6">
             <User className="h-12 w-12 text-emerald-500 mx-auto mb-2" />
-            <h2 className="text-xl font-bold text-white">Complete Profile</h2>
-            <p className="text-gray-400 text-sm">Set up your FitCoin profile</p>
+            <h2 className="text-xl font-bold text-white">Register on Blockchain</h2>
+            <p className="text-gray-400 text-sm">Create your FitCoin profile</p>
             <div className="mt-2 p-2 bg-gray-800 rounded text-xs text-gray-300 font-mono">
               {account.address.slice(0, 8)}...{account.address.slice(-6)}
             </div>
@@ -136,7 +143,7 @@ const WalletConnection: React.FC = () => {
 
           <form onSubmit={handleRegistration} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">Username (Public)</label>
+              <label className="block text-xs font-medium text-gray-300 mb-1">Username (On-Chain)</label>
               <input
                 type="text"
                 name="username"
@@ -146,7 +153,7 @@ const WalletConnection: React.FC = () => {
                 placeholder="Choose a unique username"
                 required
               />
-              <p className="text-xs text-gray-500 mt-1">Stored on Aptos blockchain</p>
+              <p className="text-xs text-gray-500 mt-1">Stored permanently on Aptos blockchain</p>
             </div>
 
             <div>
@@ -159,19 +166,6 @@ const WalletConnection: React.FC = () => {
                 className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 required
               />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">Email (Optional - Private)</label>
-              <input
-                type="email"
-                name="email"
-                value={registrationData.email}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                placeholder="Stored off-chain for privacy"
-              />
-              <p className="text-xs text-gray-500 mt-1">Stored privately off-chain</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -200,18 +194,6 @@ const WalletConnection: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">Date of Birth</label>
-              <input
-                type="date"
-                name="dateOfBirth"
-                value={registrationData.dateOfBirth}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                required
-              />
-            </div>
-
-            <div>
               <label className="block text-xs font-medium text-gray-300 mb-1">Fitness Goal</label>
               <select
                 name="fitnessGoal"
@@ -228,24 +210,17 @@ const WalletConnection: React.FC = () => {
             </div>
 
             <div className="bg-gray-800 p-3 rounded-lg border border-gray-700">
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="agreeTerms"
-                  name="agreeTerms"
-                  checked={registrationData.agreeTerms}
-                  onChange={handleInputChange}
-                  className="rounded border-gray-600 text-emerald-600 focus:ring-emerald-500"
-                />
-                <label htmlFor="agreeTerms" className="text-xs text-gray-300">
-                  I agree to store my data on Aptos blockchain
-                </label>
+              <div className="text-xs text-gray-300 space-y-1">
+                <p>✓ Data stored on Aptos blockchain</p>
+                <p>✓ Decentralized and secure</p>
+                <p>✓ You own your data</p>
+                <p>✓ 50 FitCoins welcome bonus</p>
               </div>
             </div>
 
             <button
               type="submit"
-              disabled={!registrationData.agreeTerms || loading}
+              disabled={loading}
               className="w-full bg-emerald-600 text-white py-3 px-4 rounded-lg font-medium text-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
             >
               {loading ? (
@@ -277,7 +252,7 @@ const WalletConnection: React.FC = () => {
           <Activity className="h-16 w-16 text-emerald-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-white mb-2">FitCoin</h1>
           <p className="text-gray-400 text-sm">Move, Earn, Impact</p>
-          <p className="text-gray-500 text-xs mt-2">Connect your Web3 wallet to get started</p>
+          <p className="text-gray-500 text-xs mt-2">Pure Web3 - No passwords needed</p>
         </div>
 
         <div className="space-y-3">
@@ -301,12 +276,12 @@ const WalletConnection: React.FC = () => {
         </div>
 
         <div className="text-center mt-6 pt-6 border-t border-gray-800">
-          <p className="text-xs text-gray-500">
-            Secured by Aptos blockchain technology
-          </p>
-          <p className="text-xs text-gray-600 mt-1">
-            No passwords needed - your wallet is your identity
-          </p>
+          <div className="space-y-2 text-xs text-gray-500">
+            <p>🔐 Your wallet = Your identity</p>
+            <p>⛓️ All data stored on Aptos blockchain</p>
+            <p>🪙 Earn FitCoins for every activity</p>
+            <p>🌱 Use coins for real-world impact</p>
+          </div>
         </div>
       </div>
     </div>

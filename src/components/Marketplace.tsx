@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
+import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { ShoppingBag, Shield, TreePine, TrendingUp, Coins } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
+import { AptosService } from '../services/blockchain';
 import { MarketplaceItem } from '../types';
 
 const Marketplace: React.FC = () => {
+  const { signAndSubmitTransaction, account } = useWallet();
   const { coins, setCoins } = useApp();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [loading, setLoading] = useState<string | null>(null);
@@ -97,21 +100,44 @@ const Marketplace: React.FC = () => {
     setLoading(item.id);
     
     try {
-      // Simulate purchase process
-      setTimeout(() => {
-        const updatedCoins = {
-          balance: coins.balance - item.coinCost,
-          totalEarned: coins.totalEarned,
-          totalSpent: coins.totalSpent + item.coinCost
-        };
-        
-        setCoins(updatedCoins);
-        localStorage.setItem('fitcoin_coins', JSON.stringify(updatedCoins));
-        alert(`Successfully purchased: ${item.title}!`);
-        setLoading(null);
-      }, 1500);
+      const aptosService = AptosService.getInstance();
+      
+      // Create blockchain transaction for purchase
+      const transactionPayload = await aptosService.purchaseItem(
+        account!.address!,
+        item.id,
+        item.title,
+        item.coinCost
+      );
+
+      // Submit transaction through wallet
+      const transaction = JSON.parse(transactionPayload);
+      const response = await signAndSubmitTransaction({
+        data: {
+          function: transaction.function,
+          functionArguments: transaction.arguments,
+        }
+      });
+
+      console.log('Purchase recorded on blockchain:', response);
+
+      // Wait for transaction to be processed
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Refresh balance from blockchain
+      const updatedBalance = await aptosService.getFitCoinBalance(account!.address!);
+      
+      setCoins(prev => ({
+        ...prev,
+        balance: updatedBalance,
+        totalSpent: prev.totalSpent + item.coinCost
+      }));
+      
+      alert(`Successfully purchased: ${item.title}!`);
+      setLoading(null);
     } catch (error) {
       console.error('Purchase failed:', error);
+      alert('Purchase failed. Please try again.');
       setLoading(null);
     }
   };

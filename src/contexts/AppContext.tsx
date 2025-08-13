@@ -28,22 +28,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isTracking, setIsTracking] = useState(false);
 
   useEffect(() => {
-    // Load user data from localStorage
-    const savedUser = localStorage.getItem('fitcoin_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-      setIsConnected(true);
-    }
-
-    const savedCoins = localStorage.getItem('fitcoin_coins');
-    if (savedCoins) {
-      setCoins(JSON.parse(savedCoins));
-    }
-
-    const savedActivities = localStorage.getItem('fitcoin_activities');
-    if (savedActivities) {
-      setActivities(JSON.parse(savedActivities));
-    }
+    // In Web3 app, data is loaded from blockchain when wallet connects
+    // No localStorage needed for user data
   }, []);
 
   return (

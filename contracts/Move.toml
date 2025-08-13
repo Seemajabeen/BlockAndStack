@@ -1,0 +1,17 @@
+[package]
+name = "FitCoin"
+version = "1.0.0"
+authors = ["FitCoin Team"]
+
+[addresses]
+fitcoin_addr = "_"
+
+[dev-addresses]
+fitcoin_addr = "0x42"
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-core.git"
+rev = "mainnet"
+subdir = "aptos-move/framework/aptos-framework"
+
+[dev-dependencies]

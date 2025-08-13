@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useWallet } from '@aptos-labs/wallet-adapter-react';
 import { Activity, Coins, TrendingUp, Target, Play, Pause, Award } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { AptosService } from '../services/blockchain';
 
 const Dashboard: React.FC = () => {
+  const { signAndSubmitTransaction, account } = useWallet();
   const { user, coins, setCoins, activities, setActivities, isTracking, setIsTracking } = useApp();
   const [currentActivity, setCurrentActivity] = useState({
     duration: 0,
@@ -43,30 +45,44 @@ const Dashboard: React.FC = () => {
       setIsTracking(false);
       
       if (currentActivity.caloriesBurned > 0) {
-        const aptosService = AptosService.getInstance();
-        const coinsEarned = await aptosService.earnCoins(user!.id, currentActivity.caloriesBurned);
-        
-        const newActivity = {
-          id: `activity_${Date.now()}`,
-          userId: user!.id,
-          activityType: 'workout' as const,
-          duration: Math.floor(currentActivity.duration / 60),
-          caloriesBurned: Math.floor(currentActivity.caloriesBurned),
-          coinsEarned,
-          timestamp: new Date().toISOString()
-        };
+        try {
+          const aptosService = AptosService.getInstance();
+          
+          // Create blockchain transaction for recording activity
+          const transactionPayload = await aptosService.recordActivity(
+            account!.address!,
+            'workout',
+            Math.floor(currentActivity.duration / 60),
+            Math.floor(currentActivity.caloriesBurned)
+          );
 
-        const updatedActivities = [...activities, newActivity];
-        const updatedCoins = {
-          balance: coins.balance + coinsEarned,
-          totalEarned: coins.totalEarned + coinsEarned,
-          totalSpent: coins.totalSpent
-        };
+          // Submit transaction through wallet
+          const transaction = JSON.parse(transactionPayload);
+          const response = await signAndSubmitTransaction({
+            data: {
+              function: transaction.function,
+              functionArguments: transaction.arguments,
+            }
+          });
 
-        setActivities(updatedActivities);
-        setCoins(updatedCoins);
-        localStorage.setItem('fitcoin_activities', JSON.stringify(updatedActivities));
-        localStorage.setItem('fitcoin_coins', JSON.stringify(updatedCoins));
+          console.log('Activity recorded on blockchain:', response);
+
+          // Wait for transaction to be processed
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+          // Refresh data from blockchain
+          const updatedActivities = await aptosService.getUserActivities(account!.address!);
+          const updatedBalance = await aptosService.getFitCoinBalance(account!.address!);
+          
+          setActivities(updatedActivities);
+          setCoins(prev => ({
+            ...prev,
+            balance: updatedBalance
+          }));
+        } catch (error) {
+          console.error('Failed to record activity on blockchain:', error);
+          alert('Failed to record activity. Please try again.');
+        }
         
         setCurrentActivity({ duration: 0, caloriesBurned: 0, coinsEarning: 0 });
       }
