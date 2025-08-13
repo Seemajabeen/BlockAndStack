@@ -1,7 +1,7 @@
 import React, { createContext, useContext } from 'react';
 import { AptosWalletAdapterProvider } from '@aptos-labs/wallet-adapter-react';
 import { PetraWallet } from 'petra-plugin-wallet-adapter';
-import { MartianWallet } from 'martian-wallet-adapter';
+import { MartianWallet } from '@martianwallet/aptos-wallet-adapter';
 import { Network } from '@aptos-labs/ts-sdk';
 
 const wallets = [
