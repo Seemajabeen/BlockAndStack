@@ -11,7 +11,10 @@ const Profile: React.FC = () => {
   const avgDailyCalories = totalActivities > 0 ? Math.floor(totalCalories / Math.max(totalActivities, 1)) : 0;
 
   const handleLogout = () => {
-    localStorage.removeItem('fitcoin_user');
+    // In Web3, we disconnect the wallet instead of clearing session
+    if (user?.walletAddress) {
+      localStorage.removeItem(`fitcoin_user_${user.walletAddress}`);
+    }
     localStorage.removeItem('fitcoin_coins');
     localStorage.removeItem('fitcoin_activities');
     setUser(null);
@@ -37,10 +40,10 @@ const Profile: React.FC = () => {
           <p className="text-gray-400 text-sm">@{user?.username}</p>
           <div className="mt-2">
             <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
-              user?.isVerified ? 'bg-emerald-600 text-white' : 'bg-gray-700 text-gray-300'
+              user?.isVerified ? 'bg-emerald-600 text-white' : 'bg-yellow-600 text-white'
             }`}>
               <Shield className="h-3 w-3 mr-1" />
-              {user?.isVerified ? 'Verified' : 'Pending Verification'}
+              {user?.isVerified ? 'Wallet Verified' : 'Verification Pending'}
             </span>
           </div>
         </div>
@@ -79,7 +82,7 @@ const Profile: React.FC = () => {
                 {user?.walletAddress}
               </div>
               <div className="text-xs text-gray-400">
-                Connected to Aptos Network
+                Connected to Aptos Testnet
               </div>
             </div>
           ) : (
@@ -170,7 +173,7 @@ const Profile: React.FC = () => {
             className="w-full bg-red-600 text-white py-3 px-4 rounded-lg font-medium flex items-center justify-center hover:bg-red-700"
           >
             <LogOut className="mr-2 h-4 w-4" />
-            Logout
+            Disconnect Wallet
           </button>
         </div>
       </div>

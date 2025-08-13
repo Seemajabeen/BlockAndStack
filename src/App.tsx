@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AppProvider, useApp } from './contexts/AppContext';
-import Login from './components/Login';
-import Registration from './components/Registration';
+import { WalletContextProvider } from './contexts/WalletContext';
+import WalletConnection from './components/WalletConnection';
 import Dashboard from './components/Dashboard';
 import Marketplace from './components/Marketplace';
 import Profile from './components/Profile';
@@ -9,26 +9,18 @@ import Navigation from './components/Navigation';
 
 const AppContent: React.FC = () => {
   const { isConnected } = useApp();
-  const [currentView, setCurrentView] = useState('login');
+  const [currentView, setCurrentView] = useState('wallet');
 
   useEffect(() => {
     if (isConnected) {
       setCurrentView('dashboard');
     } else {
-      setCurrentView('login');
+      setCurrentView('wallet');
     }
   }, [isConnected]);
 
   if (!isConnected) {
-    if (currentView === 'register') {
-      return <Registration onComplete={() => setCurrentView('dashboard')} />;
-    }
-    return (
-      <Login 
-        onLogin={() => setCurrentView('dashboard')}
-        onSignup={() => setCurrentView('register')}
-      />
-    );
+    return <WalletConnection />;
   }
 
   const renderCurrentView = () => {
@@ -56,9 +48,11 @@ const AppContent: React.FC = () => {
 
 function App() {
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <WalletContextProvider>
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </WalletContextProvider>
   );
 }
 
